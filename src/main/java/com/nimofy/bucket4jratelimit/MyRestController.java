@@ -5,16 +5,18 @@ import com.nimofy.bucket4jratelimit.apiRateLimiting.RateLimitTimeUnit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestTemplate;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequiredArgsConstructor
-@ApiRateLimiter(timeUnit = RateLimitTimeUnit.MINUTES, timeValue = 1)
+@ApiRateLimiter(timeUnit = RateLimitTimeUnit.HOURS, timeValue = 5)
 public class MyRestController {
 
-    private final RestTemplate restTemplate;
+    private static final AtomicInteger atomicInteger = new AtomicInteger(0);
+
     @GetMapping("hello")
-    public String hello() {
-        return "hello";
+    public Integer hello() {
+        return atomicInteger.incrementAndGet();
     }
 }

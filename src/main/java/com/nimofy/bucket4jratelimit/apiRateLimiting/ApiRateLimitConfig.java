@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Bean;
 public class ApiRateLimitConfig {
 
     @Bean
-    public ApiRateLimiterAnnotationBeanPostProcessor apiRateLimiterAnnotationBeanPostProcessor() {
-        return new ApiRateLimiterAnnotationBeanPostProcessor();
+    public ApiRateLimiterAspect apiRateLimiterAspect(){
+        return new ApiRateLimiterAspect();
     }
 }
