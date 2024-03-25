@@ -1,5 +1,6 @@
-package com.nimofy.bucket4jratelimit.apiRateLimiting;
+package com.nimofy.bucket4jratelimit.apiRateLimiting.annotation;
 
+import com.nimofy.bucket4jratelimit.apiRateLimiting.customConfig.ApiRateLimitConfig;
 import org.springframework.context.annotation.Import;
 
 import java.lang.annotation.ElementType;

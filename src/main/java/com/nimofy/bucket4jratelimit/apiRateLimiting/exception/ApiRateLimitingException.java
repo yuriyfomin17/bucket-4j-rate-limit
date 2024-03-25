@@ -1,4 +1,4 @@
-package com.nimofy.bucket4jratelimit.apiRateLimiting;
+package com.nimofy.bucket4jratelimit.apiRateLimiting.exception;
 
 public class ApiRateLimitingException extends RuntimeException{
 

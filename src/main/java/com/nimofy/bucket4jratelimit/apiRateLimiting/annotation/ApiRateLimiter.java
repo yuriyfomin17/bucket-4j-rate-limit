@@ -1,4 +1,4 @@
-package com.nimofy.bucket4jratelimit.apiRateLimiting;
+package com.nimofy.bucket4jratelimit.apiRateLimiting.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -11,5 +11,9 @@ public @interface ApiRateLimiter {
 
     RateLimitTimeUnit timeUnit() default RateLimitTimeUnit.MINUTES;
 
-    long timeValue();
+    long numberOfAllowedCalls();
+
+    long timePeriod() default 1;
+
+    String argumentName();
 }

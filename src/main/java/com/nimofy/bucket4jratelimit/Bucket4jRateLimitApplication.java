@@ -1,14 +1,13 @@
 package com.nimofy.bucket4jratelimit;
 
-import com.nimofy.bucket4jratelimit.apiRateLimiting.EnableApiRateLimitConfig;
+import com.nimofy.bucket4jratelimit.apiRateLimiting.annotation.EnableApiRateLimitConfig;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -19,32 +18,29 @@ import java.util.concurrent.CompletableFuture;
 @EnableApiRateLimitConfig
 public class Bucket4jRateLimitApplication {
 
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Autowired
+    private TaskExecutor cryptoTaskExecutor;
+
     public static void main(String[] args) {
         SpringApplication.run(Bucket4jRateLimitApplication.class, args);
     }
 
-    @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
-    }
-
-    @Bean
-    public TaskExecutor cryptoTaskExecutor() {
-        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-        taskExecutor.setCorePoolSize(100);
-        taskExecutor.setMaxPoolSize(100);
-        return taskExecutor;
-    }
-
     @EventListener(ContextRefreshedEvent.class)
-    public void test() {
-        var restTemplate = new RestTemplate();
-        List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            completableFutures.add(CompletableFuture.runAsync(() -> {
-                ResponseEntity<Integer> forEntity = restTemplate.getForEntity("http://localhost:8080/hello", Integer.class);
-                System.out.println("count:" + forEntity.getBody());
-            }, cryptoTaskExecutor()));
+    public void testRateLimiting() {
+        List<CompletableFuture<HttpStatus>> completableFutures = new ArrayList<>();
+        restTemplate.getForEntity("http://localhost:8080/hello", HttpStatus.class).getBody();
+        for (int i = 0; i <= 10_000; i++) {
+            completableFutures.add(CompletableFuture.supplyAsync(() -> {
+                        try {
+                            return restTemplate.getForEntity("http://localhost:8080/hello", HttpStatus.class).getBody();
+                        } catch (Exception e) {
+                            return HttpStatus.BAD_GATEWAY;
+                        }
+                    }, cryptoTaskExecutor)
+            );
         }
         completableFutures.forEach(CompletableFuture::join);
     }
