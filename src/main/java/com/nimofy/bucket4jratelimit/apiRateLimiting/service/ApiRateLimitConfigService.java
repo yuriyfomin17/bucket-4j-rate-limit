@@ -1,55 +1,67 @@
 package com.nimofy.bucket4jratelimit.apiRateLimiting.service;
 
 import com.nimofy.bucket4jratelimit.apiRateLimiting.annotation.ApiRateLimiter;
-import com.nimofy.bucket4jratelimit.apiRateLimiting.model.ThirdPartyApiRateLimitConfig;
-import com.nimofy.bucket4jratelimit.apiRateLimiting.repository.RateLimitConfigRepo;
+import com.nimofy.bucket4jratelimit.apiRateLimiting.modelRedis.ThirdPartyApiRateLimitConfigRedis;
+import com.nimofy.bucket4jratelimit.apiRateLimiting.repository.RateLimitConfigRepoRedis;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ApiRateLimitConfigService {
 
-    private final RateLimitConfigRepo rateLimitConfigRepo;
+    private static final Integer LOCK_TIMEOUT = 1;
 
-    @Transactional
-    public boolean incrementRequestCount(Integer argumentHashCode, ApiRateLimiter apiRateLimiterAnnotationParam) {
+    private final RateLimitConfigRepoRedis rateLimitConfigRepoRedis;
+    private final RedissonClient redissonClient;
+
+    public boolean isApiRateLimitExceeded(Integer argumentHashCode, ApiRateLimiter apiRateLimiterAnnotationParam) {
         try {
-            LocalDateTime currentTime = LocalDateTime.now();
-            ThirdPartyApiRateLimitConfig thirdPartyApiRateLimitConfig = retrieveConfigByHashcode(argumentHashCode, apiRateLimiterAnnotationParam);
-            if (currentTime.isAfter(thirdPartyApiRateLimitConfig.getExpirationTime())) {
-                thirdPartyApiRateLimitConfig.setCurrentRequestCount(1L);
-                thirdPartyApiRateLimitConfig.setExpirationTime(getExpirationTime(apiRateLimiterAnnotationParam));
+            boolean lockAcquired = redissonClient.getLock(argumentHashCode.toString()).tryLock(LOCK_TIMEOUT, TimeUnit.SECONDS);
+            if (!lockAcquired) {
                 return false;
             }
-
+            LocalDateTime currentTime = LocalDateTime.now();
+            ThirdPartyApiRateLimitConfigRedis thirdPartyApiRateLimitConfig = getOrCreateConfigByHashCode(argumentHashCode, apiRateLimiterAnnotationParam);
+            if (currentTime.isAfter(thirdPartyApiRateLimitConfig.getExpirationTime())) {
+                rateLimitConfigRepoRedis.deleteById(argumentHashCode);
+                createApiRateLimitConfig(argumentHashCode, apiRateLimiterAnnotationParam, 1L);
+                return false;
+            }
             if (thirdPartyApiRateLimitConfig.getCurrentRequestCount() >= thirdPartyApiRateLimitConfig.getNumberOfAllowedCalls()) {
                 return true;
             }
-
             thirdPartyApiRateLimitConfig.setCurrentRequestCount(thirdPartyApiRateLimitConfig.getCurrentRequestCount() + 1);
+            rateLimitConfigRepoRedis.save(thirdPartyApiRateLimitConfig);
             return false;
         } catch (Exception e) {
             log.error(e.getMessage());
             return false;
+        } finally {
+            redissonClient.getLock(argumentHashCode.toString()).unlock();
         }
     }
 
+    private ThirdPartyApiRateLimitConfigRedis getOrCreateConfigByHashCode(Integer argumentHash, ApiRateLimiter apiRateLimiterAnnotationParam) {
+        return rateLimitConfigRepoRedis
+                .findById(argumentHash)
+                .orElseGet(() -> createApiRateLimitConfig(argumentHash, apiRateLimiterAnnotationParam, 0L));
+    }
 
-    private ThirdPartyApiRateLimitConfig retrieveConfigByHashcode(Integer argumentHash, ApiRateLimiter apiRateLimiterAnnotationParam) {
-        return rateLimitConfigRepo
-                .findByIdWithLock(argumentHash)
-                .orElseGet(() -> rateLimitConfigRepo.save(ThirdPartyApiRateLimitConfig.builder()
-                        .id(argumentHash)
-                        .currentRequestCount(0L)
-                        .numberOfAllowedCalls(apiRateLimiterAnnotationParam.numberOfAllowedCalls())
-                        .expirationTime(getExpirationTime(apiRateLimiterAnnotationParam))
-                        .build()));
+    private ThirdPartyApiRateLimitConfigRedis createApiRateLimitConfig(Integer argumentHash, ApiRateLimiter apiRateLimiterAnnotationParam, Long currentRequestCount) {
+        return rateLimitConfigRepoRedis.save(ThirdPartyApiRateLimitConfigRedis.builder()
+                .id(argumentHash)
+                .currentRequestCount(currentRequestCount)
+                .numberOfAllowedCalls(apiRateLimiterAnnotationParam.numberOfAllowedCalls())
+                .expirationTime(getExpirationTime(apiRateLimiterAnnotationParam))
+                .build()
+        );
     }
 
     private LocalDateTime getExpirationTime(ApiRateLimiter apiRateLimiterAnnotationParam) {

@@ -20,21 +20,30 @@ public class ApiRateLimiterAspect {
     @Autowired
     private ApiRateLimitConfigService apiRateLimitConfigService;
 
+    private static final String CLASS_ID = "-CLASS_ID";
+
     @Before("@within(apiRateLimiter)")
     public void before(JoinPoint joinPoint, ApiRateLimiter apiRateLimiter) {
-        int argumentIndex = retrieveParamIndex(joinPoint, apiRateLimiter.argumentName());
-        if (argumentIndex == -1) {
-            return;
-        }
-        Object[] methodArgs = joinPoint.getArgs();
-        Object methodArgument = methodArgs[argumentIndex];
-        int methodArgumentHashCode = methodArgument.hashCode();
-
-        boolean isApiRateLimitExceeded = apiRateLimitConfigService.incrementRequestCount(methodArgumentHashCode, apiRateLimiter);
-
+        Integer methodArgumentHashCode = getMethodArgumentHashCode(joinPoint, apiRateLimiter);
+        if (methodArgumentHashCode == null) return;
+        boolean isApiRateLimitExceeded = apiRateLimitConfigService.isApiRateLimitExceeded(methodArgumentHashCode, apiRateLimiter);
         if (isApiRateLimitExceeded) {
             throw new ApiRateLimitingException("api limit exceed");
         }
+    }
+
+    private Integer getMethodArgumentHashCode(JoinPoint joinPoint, ApiRateLimiter apiRateLimiter) {
+        if (StringUtils.isEmpty(apiRateLimiter.rateLimitedArgument())){
+            return (joinPoint.getTarget().getClass().getName() + CLASS_ID)
+                    .hashCode();
+        }
+        int argumentIndex = retrieveParamIndex(joinPoint, apiRateLimiter.rateLimitedArgument());
+        if (argumentIndex == -1) {
+            return null;
+        }
+        Object[] methodArgs = joinPoint.getArgs();
+        Object methodArgument = methodArgs[argumentIndex];
+        return methodArgument.hashCode();
     }
 
 
@@ -49,5 +58,4 @@ public class ApiRateLimiterAspect {
         }
         return -1;
     }
-
 }

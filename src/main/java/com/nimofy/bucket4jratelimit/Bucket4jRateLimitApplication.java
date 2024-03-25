@@ -31,8 +31,7 @@ public class Bucket4jRateLimitApplication {
     @EventListener(ContextRefreshedEvent.class)
     public void testRateLimiting() {
         List<CompletableFuture<HttpStatus>> completableFutures = new ArrayList<>();
-        restTemplate.getForEntity("http://localhost:8080/hello", HttpStatus.class).getBody();
-        for (int i = 0; i <= 10_000; i++) {
+        for (int i = 0; i <= 20; i++) {
             completableFutures.add(CompletableFuture.supplyAsync(() -> {
                         try {
                             return restTemplate.getForEntity("http://localhost:8080/hello", HttpStatus.class).getBody();

@@ -15,5 +15,5 @@ public @interface ApiRateLimiter {
 
     long timePeriod() default 1;
 
-    String argumentName();
+    String rateLimitedArgument() default "";
 }

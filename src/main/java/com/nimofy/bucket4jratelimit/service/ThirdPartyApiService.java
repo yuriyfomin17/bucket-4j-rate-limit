@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-@ApiRateLimiter(timeUnit = RateLimitTimeUnit.MINUTES, numberOfAllowedCalls = 10_000, argumentName = "arg4")
+@ApiRateLimiter(timeUnit = RateLimitTimeUnit.MINUTES, numberOfAllowedCalls = 10, rateLimitedArgument = "arg4")
 @Service
 public class ThirdPartyApiService {
 
